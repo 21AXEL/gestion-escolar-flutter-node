@@ -35,9 +35,8 @@ let libros = [
         descripcion: "El niño que vivió." 
     }
 ];
-
 // 2.b) Datos de ESTUDIANTES
-// Usamos "ui-avatars.com" que genera la foto con las iniciales del nombre automáticamente.
+// Use "ui-avatars.com" que genera la foto con las iniciales del nombre automáticamente.
 let estudiantes = [
     { 
         id: 1, 

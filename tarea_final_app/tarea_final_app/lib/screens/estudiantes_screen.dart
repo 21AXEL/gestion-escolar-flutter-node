@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'estudiante_form_screen.dart';
-import 'estudiante_detail_screen.dart'; // <--- IMPORTANTE: Importamos el detalle
+import 'estudiante_detail_screen.dart';
 
 class EstudiantesScreen extends StatefulWidget {
   const EstudiantesScreen({super.key});
@@ -11,8 +11,13 @@ class EstudiantesScreen extends StatefulWidget {
 }
 
 class _EstudiantesScreenState extends State<EstudiantesScreen> {
-  List<dynamic> estudiantes = [];
+  // DOS LISTAS: Una guarda todo, la otra es la que se muestra
+  List<dynamic> estudiantesCompleto = [];
+  List<dynamic> estudiantesFiltrados = [];
+
   bool cargando = true;
+  TextEditingController searchController =
+      TextEditingController(); // Controlador del buscador
 
   @override
   void initState() {
@@ -23,10 +28,31 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
   void cargarDatos() async {
     var resultado = await ApiService.getEstudiantes();
     setState(() {
-      estudiantes = resultado;
+      estudiantesCompleto = resultado;
+      estudiantesFiltrados = resultado; // Al inicio, mostramos todos
       cargando = false;
     });
   }
+
+  // --- LÓGICA DEL BUSCADOR ---
+  void _filtrarBusqueda(String texto) {
+    setState(() {
+      if (texto.isEmpty) {
+        // Si borra el texto, mostramos todo de nuevo
+        estudiantesFiltrados = estudiantesCompleto;
+      } else {
+        // Filtramos si el nombre contiene el texto escrito
+        estudiantesFiltrados = estudiantesCompleto
+            .where(
+              (est) => est['nombre'].toString().toLowerCase().contains(
+                texto.toLowerCase(),
+              ),
+            )
+            .toList();
+      }
+    });
+  }
+  // ---------------------------
 
   void _borrar(int id) async {
     bool confirm =
@@ -75,61 +101,98 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
         title: const Text("Gestión de Estudiantes"),
         backgroundColor: Colors.indigo,
       ),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: estudiantes.length,
-              itemBuilder: (context, index) {
-                final est = estudiantes[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  child: ListTile(
-                    // --- NUEVO: AL TOCAR, ABRE EL DETALLE ---
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              EstudianteDetailScreen(estudiante: est),
+      body: Column(
+        // Usamos Column para poner el buscador arriba
+        children: [
+          // --- BARRA DE BÚSQUEDA ---
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              controller: searchController,
+              onChanged: _filtrarBusqueda, // Cada tecla llama al filtro
+              decoration: InputDecoration(
+                labelText: "Buscar estudiante...",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                filled: true,
+                fillColor: Colors.grey[100],
+              ),
+            ),
+          ),
+          // --------------------------
+
+          // --- LISTA (Expanded para que ocupe el resto) ---
+          Expanded(
+            child: cargando
+                ? const Center(child: CircularProgressIndicator())
+                : estudiantesFiltrados.isEmpty
+                ? const Center(child: Text("No se encontraron resultados"))
+                : ListView.builder(
+                    itemCount:
+                        estudiantesFiltrados.length, // Usamos la lista filtrada
+                    itemBuilder: (context, index) {
+                      final est = estudiantesFiltrados[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        child: ListTile(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    EstudianteDetailScreen(estudiante: est),
+                              ),
+                            );
+                          },
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.indigo.shade100,
+                            backgroundImage: NetworkImage(est['imagen']),
+                            onBackgroundImageError: (_, __) {},
+                            child:
+                                est['imagen'] == "" ||
+                                    est['imagen'].contains("placeholder")
+                                ? const Icon(Icons.person, color: Colors.indigo)
+                                : null,
+                          ),
+                          title: Text(
+                            est['nombre'],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            "${est['carrera']} - ${est['matricula']}",
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.blue,
+                                ),
+                                onPressed: () =>
+                                    _irAFormulario(estudiante: est),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => _borrar(est['id']),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
-                    // ----------------------------------------
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.indigo.shade100,
-                      backgroundImage: NetworkImage(est['imagen']),
-                      onBackgroundImageError: (_, __) {},
-                      child:
-                          est['imagen'] == "" ||
-                              est['imagen'].contains("placeholder")
-                          ? const Icon(Icons.person, color: Colors.indigo)
-                          : null,
-                    ),
-                    title: Text(
-                      est['nombre'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text("${est['carrera']} - ${est['matricula']}"),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => _irAFormulario(estudiante: est),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _borrar(est['id']),
-                        ),
-                      ],
-                    ),
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _irAFormulario(),
         backgroundColor: Colors.indigo,
