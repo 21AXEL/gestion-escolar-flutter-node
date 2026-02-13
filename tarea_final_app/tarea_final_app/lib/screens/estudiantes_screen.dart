@@ -16,8 +16,7 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
   List<dynamic> estudiantesFiltrados = [];
 
   bool cargando = true;
-  TextEditingController searchController =
-      TextEditingController(); // Controlador del buscador
+  TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
@@ -38,10 +37,8 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
   void _filtrarBusqueda(String texto) {
     setState(() {
       if (texto.isEmpty) {
-        // Si borra el texto, mostramos todo de nuevo
         estudiantesFiltrados = estudiantesCompleto;
       } else {
-        // Filtramos si el nombre contiene el texto escrito
         estudiantesFiltrados = estudiantesCompleto
             .where(
               (est) => est['nombre'].toString().toLowerCase().contains(
@@ -52,9 +49,9 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
       }
     });
   }
-  // ---------------------------
 
-  void _borrar(int id) async {
+  // CAMBIO 1: El ID ahora es String (porque viene de MongoDB)
+  void _borrar(String id) async {
     bool confirm =
         await showDialog(
           context: context,
@@ -102,14 +99,13 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
         backgroundColor: Colors.indigo,
       ),
       body: Column(
-        // Usamos Column para poner el buscador arriba
         children: [
           // --- BARRA DE BÚSQUEDA ---
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
               controller: searchController,
-              onChanged: _filtrarBusqueda, // Cada tecla llama al filtro
+              onChanged: _filtrarBusqueda,
               decoration: InputDecoration(
                 labelText: "Buscar estudiante...",
                 prefixIcon: const Icon(Icons.search),
@@ -121,17 +117,15 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
               ),
             ),
           ),
-          // --------------------------
 
-          // --- LISTA (Expanded para que ocupe el resto) ---
+          // --- LISTA ---
           Expanded(
             child: cargando
                 ? const Center(child: CircularProgressIndicator())
                 : estudiantesFiltrados.isEmpty
                 ? const Center(child: Text("No se encontraron resultados"))
                 : ListView.builder(
-                    itemCount:
-                        estudiantesFiltrados.length, // Usamos la lista filtrada
+                    itemCount: estudiantesFiltrados.length,
                     itemBuilder: (context, index) {
                       final est = estudiantesFiltrados[index];
                       return Card(
@@ -182,7 +176,8 @@ class _EstudiantesScreenState extends State<EstudiantesScreen> {
                                   Icons.delete,
                                   color: Colors.red,
                                 ),
-                                onPressed: () => _borrar(est['id']),
+                                // CAMBIO 2: Usamos '_id' en lugar de 'id'
+                                onPressed: () => _borrar(est['_id']),
                               ),
                             ],
                           ),

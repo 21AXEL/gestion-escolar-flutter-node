@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'libro_form_screen.dart';
-import 'libro_detail_screen.dart'; // Asegúrate de importar la pantalla de detalle
+import 'libro_detail_screen.dart';
 
 class LibrosScreen extends StatefulWidget {
   const LibrosScreen({super.key});
@@ -16,8 +16,7 @@ class _LibrosScreenState extends State<LibrosScreen> {
   List<dynamic> librosFiltrados = [];
 
   bool cargando = true;
-  TextEditingController searchController =
-      TextEditingController(); // Controlador del buscador
+  TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
@@ -53,7 +52,8 @@ class _LibrosScreenState extends State<LibrosScreen> {
     });
   }
 
-  void _borrar(int id) async {
+  // CAMBIO 1: El ID ahora es String (porque viene de MongoDB)
+  void _borrar(String id) async {
     bool confirm =
         await showDialog(
           context: context,
@@ -174,7 +174,8 @@ class _LibrosScreenState extends State<LibrosScreen> {
                                   Icons.delete,
                                   color: Colors.red,
                                 ),
-                                onPressed: () => _borrar(libro['id']),
+                                // CAMBIO 2: Usamos '_id' en lugar de 'id'
+                                onPressed: () => _borrar(libro['_id']),
                               ),
                             ],
                           ),

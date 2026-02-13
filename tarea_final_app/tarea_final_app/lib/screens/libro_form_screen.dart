@@ -1,103 +1,143 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 
 class LibroFormScreen extends StatefulWidget {
-  final Map<String, dynamic>?
-  libro; // Si es null, es CREAR. Si tiene datos, es EDITAR.
-
+  final Map<String, dynamic>? libro;
   const LibroFormScreen({super.key, this.libro});
-
   @override
   State<LibroFormScreen> createState() => _LibroFormScreenState();
 }
 
 class _LibroFormScreenState extends State<LibroFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _tituloCtrl = TextEditingController();
   final _autorCtrl = TextEditingController();
-  final _imgCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _urlCtrl = TextEditingController();
+  File? _imageFile;
+  final ImagePicker _picker = ImagePicker();
+  String? _imgExistente;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Si venimos a EDITAR, llenamos los campos
     if (widget.libro != null) {
       _tituloCtrl.text = widget.libro!['titulo'];
       _autorCtrl.text = widget.libro!['autor'];
-      _imgCtrl.text = widget.libro!['imagen'];
+      _descCtrl.text = widget.libro!['descripcion'] ?? '';
+      _imgExistente = widget.libro!['imagen'];
+      if (_imgExistente != null && _imgExistente!.startsWith('http'))
+        _urlCtrl.text = _imgExistente!;
     }
   }
 
   void _guardar() async {
-    final data = {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+    final Map<String, String> data = {
       "titulo": _tituloCtrl.text,
       "autor": _autorCtrl.text,
-      "imagen": _imgCtrl.text.isNotEmpty
-          ? _imgCtrl.text
-          : "https://via.placeholder.com/150", // Imagen por defecto
-      "descripcion": "Descripción genérica",
+      "descripcion": _descCtrl.text,
+      "imagen": _urlCtrl.text,
     };
-
-    bool exito;
-    if (widget.libro == null) {
-      // MODO CREAR
-      exito = await ApiService.addLibro(data);
-    } else {
-      // MODO EDITAR
-      exito = await ApiService.updateLibro(widget.libro!['id'], data);
-    }
-
-    if (exito && mounted) {
-      Navigator.pop(
-        context,
-        true,
-      ); // Regresamos y decimos que "sí" hubo cambios
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
-    }
+    bool ok = widget.libro == null
+        ? await ApiService.addLibro(data, _imageFile)
+        : await ApiService.updateLibro(widget.libro!['_id'], data, _imageFile);
+    setState(() => _isLoading = false);
+    if (ok && mounted) Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final esEdicion = widget.libro != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(esEdicion ? "Editar Libro" : "Nuevo Libro"),
+        title: Text(widget.libro == null ? "Nuevo Libro" : "Editar Libro"),
         backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _tituloCtrl,
-              decoration: const InputDecoration(labelText: "Título"),
-            ),
-            TextField(
-              controller: _autorCtrl,
-              decoration: const InputDecoration(labelText: "Autor"),
-            ),
-            TextField(
-              controller: _imgCtrl,
-              decoration: const InputDecoration(
-                labelText: "URL de Imagen (Opcional)",
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  final xFile = await _picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
+                  if (xFile != null)
+                    setState(() => _imageFile = File(xFile.path));
+                },
+                child: Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: _mostrarImagen(),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _guardar,
-              icon: const Icon(Icons.save),
-              label: const Text("GUARDAR"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _urlCtrl,
+                decoration: const InputDecoration(
+                  labelText: "URL de la Portada (PC)",
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
               ),
-            ),
-          ],
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _tituloCtrl,
+                decoration: const InputDecoration(
+                  labelText: "Título",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v!.isEmpty ? "Obligatorio" : null,
+              ),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _autorCtrl,
+                decoration: const InputDecoration(
+                  labelText: "Autor",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => v!.isEmpty ? "Obligatorio" : null,
+              ),
+              const SizedBox(height: 30),
+              _isLoading
+                  ? const CircularProgressIndicator()
+                  : ElevatedButton(
+                      onPressed: _guardar,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text("GUARDAR"),
+                    ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _mostrarImagen() {
+    if (_imageFile != null) return Image.file(_imageFile!, fit: BoxFit.cover);
+    if (_urlCtrl.text.isNotEmpty)
+      return Image.network(
+        _urlCtrl.text,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+      );
+    if (_imgExistente != null)
+      return Image.network(_imgExistente!, fit: BoxFit.cover);
+    return const Icon(Icons.add_a_photo, size: 40, color: Colors.indigo);
   }
 }

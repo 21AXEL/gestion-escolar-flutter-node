@@ -1,15 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class ApiService {
-  // CONFIGURACIÓN DE IP
+  // CONFIGURACIÓN DE IP ACTUALIZADA PARA LA UNIVERSIDAD
   static String get baseUrl {
     if (kIsWeb) return 'http://127.0.0.1:3000/api';
-    return 'http://10.0.2.2:3000/api';
+    return 'http://10.10.64.187:3000/api';
   }
 
-  // --- LOGIN ---
+  // --- 1. AUTENTICACIÓN ---
   static Future<bool> login(String usuario, String password) async {
     try {
       final response = await http.post(
@@ -23,7 +24,7 @@ class ApiService {
     }
   }
 
-  // --- LIBROS (CRUD) ---
+  // --- 2. GESTIÓN DE LIBROS ---
   static Future<List<dynamic>> getLibros() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/libros'));
@@ -33,30 +34,75 @@ class ApiService {
     }
   }
 
-  static Future<bool> addLibro(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/libros'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(data),
-    );
-    return response.statusCode == 200;
+  static Future<bool> addLibro(
+    Map<String, String> data,
+    File? imageFile,
+  ) async {
+    try {
+      if (imageFile != null && !kIsWeb) {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('$baseUrl/libros'),
+        );
+        request.fields.addAll(data);
+        request.files.add(
+          await http.MultipartFile.fromPath('imagen', imageFile.path),
+        );
+        var res = await request.send();
+        return res.statusCode == 200;
+      } else {
+        final res = await http.post(
+          Uri.parse('$baseUrl/libros'),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(data),
+        );
+        return res.statusCode == 200;
+      }
+    } catch (e) {
+      return false;
+    }
   }
 
-  static Future<bool> updateLibro(int id, Map<String, dynamic> data) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/libros/$id'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(data),
-    );
-    return response.statusCode == 200;
+  static Future<bool> updateLibro(
+    String id,
+    Map<String, String> data,
+    File? imageFile,
+  ) async {
+    try {
+      if (imageFile != null && !kIsWeb) {
+        var request = http.MultipartRequest(
+          'PUT',
+          Uri.parse('$baseUrl/libros/$id'),
+        );
+        request.fields.addAll(data);
+        request.files.add(
+          await http.MultipartFile.fromPath('imagen', imageFile.path),
+        );
+        var res = await request.send();
+        return res.statusCode == 200;
+      } else {
+        final res = await http.put(
+          Uri.parse('$baseUrl/libros/$id'),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(data),
+        );
+        return res.statusCode == 200;
+      }
+    } catch (e) {
+      return false;
+    }
   }
 
-  static Future<bool> deleteLibro(int id) async {
-    final response = await http.delete(Uri.parse('$baseUrl/libros/$id'));
-    return response.statusCode == 200;
+  static Future<bool> deleteLibro(String id) async {
+    try {
+      final res = await http.delete(Uri.parse('$baseUrl/libros/$id'));
+      return res.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
   }
 
-  // --- ESTUDIANTES (CRUD NUEVO) ---
+  // --- 3. GESTIÓN DE ESTUDIANTES ---
   static Future<List<dynamic>> getEstudiantes() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/estudiantes'));
@@ -66,29 +112,71 @@ class ApiService {
     }
   }
 
-  static Future<bool> addEstudiante(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/estudiantes'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(data),
-    );
-    return response.statusCode == 200;
+  static Future<bool> addEstudiante(
+    Map<String, String> data,
+    File? imageFile,
+  ) async {
+    try {
+      if (imageFile != null && !kIsWeb) {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('$baseUrl/estudiantes'),
+        );
+        request.fields.addAll(data);
+        request.files.add(
+          await http.MultipartFile.fromPath('imagen', imageFile.path),
+        );
+        var res = await request.send();
+        return res.statusCode == 200;
+      } else {
+        final res = await http.post(
+          Uri.parse('$baseUrl/estudiantes'),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(data),
+        );
+        return res.statusCode == 200;
+      }
+    } catch (e) {
+      return false;
+    }
   }
 
   static Future<bool> updateEstudiante(
-    int id,
-    Map<String, dynamic> data,
+    String id,
+    Map<String, String> data,
+    File? imageFile,
   ) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/estudiantes/$id'),
-      headers: {"Content-Type": "application/json"},
-      body: json.encode(data),
-    );
-    return response.statusCode == 200;
+    try {
+      if (imageFile != null && !kIsWeb) {
+        var request = http.MultipartRequest(
+          'PUT',
+          Uri.parse('$baseUrl/estudiantes/$id'),
+        );
+        request.fields.addAll(data);
+        request.files.add(
+          await http.MultipartFile.fromPath('imagen', imageFile.path),
+        );
+        var res = await request.send();
+        return res.statusCode == 200;
+      } else {
+        final res = await http.put(
+          Uri.parse('$baseUrl/estudiantes/$id'),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(data),
+        );
+        return res.statusCode == 200;
+      }
+    } catch (e) {
+      return false;
+    }
   }
 
-  static Future<bool> deleteEstudiante(int id) async {
-    final response = await http.delete(Uri.parse('$baseUrl/estudiantes/$id'));
-    return response.statusCode == 200;
+  static Future<bool> deleteEstudiante(String id) async {
+    try {
+      final res = await http.delete(Uri.parse('$baseUrl/estudiantes/$id'));
+      return res.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
   }
 }

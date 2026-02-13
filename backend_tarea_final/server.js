@@ -1,139 +1,198 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose'); // Importamos Mongoose
 const ip = require('ip');
+const multer = require('multer'); // Multer para gestión de archivos
+const path = require('path');     // Para manejar rutas de carpetas
 
 const app = express();
 app.use(cors()); // Permite que Flutter se conecte
 app.use(express.json()); // Permite recibir JSON
 
+// ACTUALIZACIÓN: Hacemos pública la carpeta 'uploads' con permisos CORS para la Web
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res) => {
+        res.set('Access-Control-Allow-Origin', '*'); // Esto permite que Chrome vea las fotos
+    }
+}));
+
 const PORT = 3000;
 
-// --- BASE DE DATOS (En memoria) ---
-// AQUÍ ESTÁ EL CAMBIO: Usamos enlaces estables (OpenLibrary y UI-Avatars)
+// --- 1. CONEXIÓN A MONGODB --- 
+mongoose.connect('mongodb://127.0.0.1:27017/sistema_escolar')
+    .then(() => console.log('>>> CONECTADO A MONGODB EXITOSAMENTE <<<'))
+    .catch(err => console.error('Error conectando a MongoDB:', err));
 
-// 2.a) Datos de LIBROS
-let libros = [
-    { 
-        id: 1, 
-        titulo: "El Principito", 
-        autor: "Antoine de Saint-Exupéry", 
-        imagen: "https://covers.openlibrary.org/b/id/8577413-L.jpg", 
-        descripcion: "Un clásico de la literatura." 
+// --- 2. DEFINICIÓN DE ESQUEMAS (Modelos) ---
+
+const LibroSchema = new mongoose.Schema({
+    titulo: String,
+    autor: String,
+    imagen: String,
+    descripcion: String
+});
+const Libro = mongoose.model('Libro', LibroSchema);
+
+const EstudianteSchema = new mongoose.Schema({
+    nombre: String,
+    matricula: String,
+    carrera: String,
+    imagen: String
+});
+const Estudiante = mongoose.model('Estudiante', EstudianteSchema);
+
+
+// --- CONFIGURACIÓN MULTER ---
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/'); // Las imágenes van a la carpeta 'uploads'
     },
-    { 
-        id: 2, 
-        titulo: "Clean Code", 
-        autor: "Robert C. Martin", 
-        imagen: "https://m.media-amazon.com/images/I/41xShlnTZTL._SX218_BO1,204,203,200_QL40_ML2_.jpg", 
-        descripcion: "Manual de desarrollo ágil." 
-    },
-    { 
-        id: 3, 
-        titulo: "Harry Potter", 
-        autor: "J.K. Rowling", 
-        imagen: "https://covers.openlibrary.org/b/id/10522833-L.jpg", 
-        descripcion: "El niño que vivió." 
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
     }
-];
-// 2.b) Datos de ESTUDIANTES
-// Use "ui-avatars.com" que genera la foto con las iniciales del nombre automáticamente.
-let estudiantes = [
-    { 
-        id: 1, 
-        nombre: "Axel Angulo", 
-        matricula: "A001", 
-        imagen: "https://ui-avatars.com/api/?name=Axel+Angulo&background=0D8ABC&color=fff&size=150", 
-        carrera: "Software" 
-    },
-    { 
-        id: 2, 
-        nombre: "Maria Perez", 
-        matricula: "A002", 
-        imagen: "https://ui-avatars.com/api/?name=Maria+Perez&background=random&size=150", 
-        carrera: "Diseño" 
-    },
-    { 
-        id: 3, 
-        nombre: "Juan Silva", 
-        matricula: "A003", 
-        imagen: "https://ui-avatars.com/api/?name=Juan+Silva&background=random&size=150", 
-        carrera: "Redes" 
-    }
-];
-
-// --- ENDPOINTS (RUTAS) - ESTO SIGUE IGUAL ---
-
-// RUTAS LIBROS
-app.get('/api/libros', (req, res) => res.json(libros));
-
-app.post('/api/libros', (req, res) => {
-    const nuevo = { id: Date.now(), ...req.body };
-    // Si no mandan imagen, ponemos una por defecto
-    if (!nuevo.imagen) nuevo.imagen = "https://via.placeholder.com/150";
-    libros.push(nuevo);
-    res.json(nuevo);
 });
+const upload = multer({ storage: storage });
 
-app.put('/api/libros/:id', (req, res) => {
-    const { id } = req.params;
-    const index = libros.findIndex(l => l.id == id);
-    if (index !== -1) {
-        libros[index] = { ...libros[index], ...req.body };
-        res.json(libros[index]);
-    } else {
-        res.status(404).json({ error: "No encontrado" });
+
+// --- 3. ENDPOINTS (RUTAS) ---
+
+// === RUTAS LIBROS ===
+
+app.get('/api/libros', async (req, res) => {
+    try {
+        const libros = await Libro.find();
+        res.json(libros);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/api/libros/:id', (req, res) => {
-    const { id } = req.params;
-    libros = libros.filter(l => l.id != id);
-    res.json({ message: "Eliminado" });
-});
-
-// RUTAS ESTUDIANTES
-app.get('/api/estudiantes', (req, res) => res.json(estudiantes));
-
-app.post('/api/estudiantes', (req, res) => {
-    const nuevo = { id: Date.now(), ...req.body };
-    // Si no mandan imagen, generamos una con sus iniciales
-    if (!nuevo.imagen) {
-        nuevo.imagen = `https://ui-avatars.com/api/?name=${nuevo.nombre}&background=random`;
-    }
-    estudiantes.push(nuevo);
-    res.json(nuevo);
-});
-
-app.put('/api/estudiantes/:id', (req, res) => {
-    const { id } = req.params;
-    const index = estudiantes.findIndex(e => e.id == id);
-    if (index !== -1) {
-        estudiantes[index] = { ...estudiantes[index], ...req.body };
-        res.json(estudiantes[index]);
-    } else {
-        res.status(404).json({ error: "No encontrado" });
+// POST HÍBRIDO (Crear)
+app.post('/api/libros', upload.single('imagen'), async (req, res) => {
+    try {
+        const datos = req.body;
+        if (req.file) {
+            datos.imagen = `http://${ip.address()}:${PORT}/uploads/${req.file.filename}`;
+        } else if (!datos.imagen) {
+            datos.imagen = "https://via.placeholder.com/150";
+        }
+        
+        const nuevoLibro = new Libro(datos);
+        await nuevoLibro.save();
+        res.json(nuevoLibro);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/api/estudiantes/:id', (req, res) => {
-    const { id } = req.params;
-    estudiantes = estudiantes.filter(e => e.id != id);
-    res.json({ message: "Eliminado" });
+// PUT HÍBRIDO (Editar) - ACTUALIZADO
+app.put('/api/libros/:id', upload.single('imagen'), async (req, res) => {
+    try {
+        const datos = req.body;
+        if (req.file) {
+            datos.imagen = `http://${ip.address()}:${PORT}/uploads/${req.file.filename}`;
+        }
+        const libroActualizado = await Libro.findByIdAndUpdate(req.params.id, datos, { new: true });
+        res.json(libroActualizado);
+    } catch (error) {
+        res.status(500).json({ error: "Error al actualizar o ID no válido" });
+    }
 });
 
-// RUTA LOGIN
+app.delete('/api/libros/:id', async (req, res) => {
+    try {
+        await Libro.findByIdAndDelete(req.params.id);
+        res.json({ message: "Libro eliminado correctamente" });
+    } catch (error) {
+        res.status(500).json({ error: "Error al eliminar" });
+    }
+});
+
+
+// === RUTAS ESTUDIANTES ===
+
+app.get('/api/estudiantes', async (req, res) => {
+    try {
+        const estudiantes = await Estudiante.find();
+        res.json(estudiantes);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST HÍBRIDO (Crear)
+app.post('/api/estudiantes', upload.single('imagen'), async (req, res) => {
+    try {
+        const datos = req.body;
+        if (req.file) {
+            datos.imagen = `http://${ip.address()}:${PORT}/uploads/${req.file.filename}`;
+        } else if (!datos.imagen) {
+            datos.imagen = `https://ui-avatars.com/api/?name=${datos.nombre}&background=random&size=150`;
+        }
+        
+        const nuevoEstudiante = new Estudiante(datos);
+        await nuevoEstudiante.save();
+        res.json(nuevoEstudiante);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT HÍBRIDO (Editar) - ACTUALIZADO
+app.put('/api/estudiantes/:id', upload.single('imagen'), async (req, res) => {
+    try {
+        const datos = req.body;
+        if (req.file) {
+            datos.imagen = `http://${ip.address()}:${PORT}/uploads/${req.file.filename}`;
+        }
+        const estudianteActualizado = await Estudiante.findByIdAndUpdate(req.params.id, datos, { new: true });
+        res.json(estudianteActualizado);
+    } catch (error) {
+        res.status(500).json({ error: "Error al actualizar" });
+    }
+});
+
+app.delete('/api/estudiantes/:id', async (req, res) => {
+    try {
+        await Estudiante.findByIdAndDelete(req.params.id);
+        res.json({ message: "Estudiante eliminado correctamente" });
+    } catch (error) {
+        res.status(500).json({ error: "Error al eliminar" });
+    }
+});
+
+
+// === RUTA LOGIN ===
 app.post('/api/login', (req, res) => {
     const { usuario, password } = req.body;
     if (usuario === "admin" && password === "1234") {
-        res.json({ success: true, token: "ABC_TOKEN_123", usuario: "Administrador" });
+        res.json({ success: true, token: "ABC_TOKEN_MONGODB", usuario: "Administrador" });
     } else {
         res.status(401).json({ success: false, message: "Datos incorrectos" });
     }
 });
 
-// INICIAR
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n>>> SERVIDOR ENCENDIDO <<<`);
+
+// --- INICIAR SERVIDOR ---
+app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`\n>>> SERVIDOR ENCENDIDO (SISTEMA HÍBRIDO TOTAL) <<<`);
     console.log(`TU API ESTÁ EN: http://${ip.address()}:${PORT}/api/`);
-    console.log(`Copia esa IP para usarla en Flutter.\n`);
-}); 
+    
+    const cuenta = await Libro.countDocuments();
+    if (cuenta === 0) {
+        console.log("Base de datos vacía. Insertando datos de prueba...");
+        await Libro.create({ 
+            titulo: "El Principito", 
+            autor: "Antoine de Saint-Exupéry", 
+            imagen: "https://covers.openlibrary.org/b/id/8577413-L.jpg", 
+            descripcion: "Un clásico." 
+        });
+        await Estudiante.create({ 
+            nombre: "Axel Angulo", 
+            matricula: "A001", 
+            carrera: "Software", 
+            imagen: "https://ui-avatars.com/api/?name=Axel+Angulo&background=0D8ABC&color=fff&size=150" 
+        });
+        console.log("¡Datos de prueba insertados!");
+    }
+});
